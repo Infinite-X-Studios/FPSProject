@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "FPSProjectile.h"
 #include "FPSCharacter.generated.h"
 
 UCLASS()
@@ -17,13 +18,13 @@ public:
 	// Sets default values for this character's properties
 	AFPSCharacter();
 
-	// First-person mesh(arms), visible only to the owning player.
-	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
-	USkeletalMeshComponent* FPSMesh;
-
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+	// Projectile class to spawn.
+	UPROPERTY(EditAnywhere, Category = Projectile)
+	TSubclassOf<class AFPSProjectile> ProjectileClass;
 
 public:	
 	// Called every frame
@@ -48,7 +49,18 @@ public:
 	UFUNCTION()
 	void StopJump();
 
+	UFUNCTION()
+	void Fire();
+
 	// FPS camera.
 	UPROPERTY(VisibleAnywhere)
-	UCameraComponent* FPSCameraComponent; 
+	UCameraComponent* FPSCameraComponent;
+
+	// First-person mesh(arms), visible only to the owning player.
+	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
+	USkeletalMeshComponent* FPSMesh;
+
+	// Gun muzzle offset from the camera location.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
+	FVector MuzzleOffset;
 };

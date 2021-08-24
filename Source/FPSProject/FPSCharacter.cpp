@@ -3,6 +3,7 @@
 
 #include "FPSCharacter.h"
 
+
 // Sets default values
 AFPSCharacter::AFPSCharacter()
 {
@@ -24,6 +25,7 @@ AFPSCharacter::AFPSCharacter()
 
 	// Create a first person mesh component for the owning player.
 	FPSMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
+	check(FPSMesh != nullptr);
 
 	// Only the owning player sees this mesh.
 	FPSMesh->SetOnlyOwnerSee(true);
@@ -35,7 +37,7 @@ AFPSCharacter::AFPSCharacter()
 	FPSMesh->bCastDynamicShadow = false;
 	FPSMesh->CastShadow = false;
 
-	// The owning player dosn't see the regular (third-person) body mesh.
+	// The owning player doesn't see the regular (third-person) body mesh.
 	GetMesh()->SetOwnerNoSee(true);
 }
 
@@ -44,11 +46,12 @@ void AFPSCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	check(GEngine != nullptr);
-
-	// Display a debug message for five seconds.
-	// The -1 "Key" value argument prevents the message from being updated or refreshed.
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("We are using FPSCharacter."));
+	if(GEngine)
+	{
+		// Display a debug message for five seconds.
+		// The -1 "Key" value argument prevents the message from being updated or refreshed.
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("We are using FPSCharacter."));
+	}
 	
 }
 
@@ -56,7 +59,6 @@ void AFPSCharacter::BeginPlay()
 void AFPSCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 // Called to bind functionality to input
@@ -75,19 +77,26 @@ void AFPSCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	// Control Jumping
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AFPSCharacter::StartJump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &AFPSCharacter::StopJump);
+
+	// Control Firing
+	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &AFPSCharacter::Fire);
 }
 
 void AFPSCharacter::MoveForward(float Value)
 {
 	// Find out which way is "Forward" and record that the player wants to move that way.
-	FVector Direction = FRotationMatrix(Controller->GetControlRotation()).GetScaledAxis(EAxis::X);
-	AddMovementInput(Direction, Value);
+	//FVector Direction = FRotationMatrix(Controller->GetControlRotation()).GetScaledAxis(EAxis::X);
+	FVector Direction = FRotationMatrix(FRotator(0.0f,Controller->GetControlRotation().Yaw,Controller->GetControlRotation().Roll)).GetScaledAxis(EAxis::X);
+	//check(GEngine != nullptr)
+	AddMovementInput(Direction.GetSafeNormal(), Value);
 }
 
 void AFPSCharacter::MoveRight(float Value)
 {
 	// Find out which way is "right" and record that the player wants to move that way.
-	FVector Direction = FRotationMatrix(Controller->GetControlRotation()).GetScaledAxis(EAxis::Y);
+	//FVector Direction = FRotationMatrix(Controller->GetControlRotation()).GetScaledAxis(EAxis::Y);
+	FVector Direction = FRotationMatrix(FRotator(Controller->GetControlRotation().Pitch,Controller->GetControlRotation().Yaw,0.0f)).GetScaledAxis(EAxis::Y);
+	
 	AddMovementInput(Direction, Value);
 }
 
@@ -99,4 +108,43 @@ void AFPSCharacter::StartJump()
 void AFPSCharacter::StopJump()
 {
 	bPressedJump = false;
+}
+
+void AFPSCharacter::Fire()
+{
+	// Attempt to fire a projectile.
+	if(ProjectileClass)
+	{
+		// Get the camera transform.
+		FVector CameraLocation;
+		FRotator CameraRotation;
+		GetActorEyesViewPoint(CameraLocation, CameraRotation);
+
+		// Set MuzzleOffset to spawn projectiles slightly in front of the camera.
+		MuzzleOffset.Set(100.0f, 0.0f, 0.0f);
+
+		// Transform MuzzleOffset from camera space to world space.
+		FVector MuzzleLocation = CameraLocation + FTransform(CameraRotation).TransformVector(MuzzleOffset);
+
+		// Skew the aim to be slightly upwards.
+		FRotator MuzzleRotation = CameraRotation;
+		MuzzleRotation.Pitch += 10.0f;
+
+		UWorld* World = GetWorld();
+		if(World)
+		{
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = this;
+			SpawnParams.Instigator = GetInstigator();
+
+			// Spawn the projectile at the muzzle.
+			AFPSProjectile* Projectile = World->SpawnActor<AFPSProjectile>(ProjectileClass, MuzzleLocation, MuzzleRotation, SpawnParams);
+			if(Projectile)
+			{
+				// Set the projectile's initial trajectory.
+				FVector LaunchDirection = MuzzleRotation.Vector();
+				Projectile->FireInDirection(LaunchDirection);
+			}
+		}
+	}
 }
